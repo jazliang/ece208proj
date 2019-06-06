@@ -1,13 +1,28 @@
 
 import treeswift
-from math import floor,ceil
+from math import floor, ceil, exp
 import random
 
-DEBUG_MODE = True
+# Enable debug mode to assert or print debugging information
+debug_mode = {
+    'assert': True,
+    'print_score': False
+}
 
 
-def score(node, time):
-    return 0
+def score_random(node, time):
+    return random.uniform(0, 1)
+
+
+def score_exp_aging(node, time):
+    if node.is_root():
+        return 1
+    else:
+        return (node.parent.score + 1) * exp(- time)
+
+
+def score_counting(node, time):
+    return len(node.br_history)
 
 
 def algorithm1(tree, k=10):
@@ -16,22 +31,21 @@ def algorithm1(tree, k=10):
     :param k: scaling factor, # samples in interval Δt = floor
     :return:
     """
-    # Maintain a set of branches that are currently being processed
-    # The 'cur_proc_branches' set actually store the nodes associated with the edges
-    cur_proc_branches = set()
 
+    # === Branching history & Distance to root ===
     # Distances from root of all nodes in the tree
-    def dfs(node):
-        node.br_history = node.get_parent().br_history + [node.get_parent().dist_from_root]
-        node.dist_from_root = node.get_parent().dist_from_root + node.edge
+    def br_hist_dfs(node):
+        if node.is_root():
+            node.br_history = []
+            node.dist_from_root = 0
+        else:
+            node.br_history = node.get_parent().br_history + [node.get_parent().dist_from_root]
+            node.dist_from_root = node.get_parent().dist_from_root + node.edge_length
 
-    for node, dist in tree.distances_from_root(unlabeled=True):
-        node.dist_from_root = dist
+        for c in node.child_nodes():
+            br_hist_dfs(c)
 
-    # Nodes in the tree: attribute, stores info such as scores
-    # edge (connecting to its parent) info stored as attributes of node
-    # node.count
-    # node.score
+    br_hist_dfs(tree.root)
 
     # Running count of predictions (sampled times)
     n_pred = 0
@@ -42,8 +56,12 @@ def algorithm1(tree, k=10):
     # Next node that is going to branch
     # Initially, it is the root node
     next_branching_node = tree.root
-    next_branching_node_dist = float('inf')
+    next_branching_node_dist_from_root = 0
 
+    # Maintain a set of branches that are currently being processed
+    # The 'cur_proc_branches' set actually store the nodes associated with the edges
+    cur_proc_branches = set()
+    cur_proc_branches.add(tree.root)
 
     # Number of leaf nodes in the 'cur_proc_branches' set
     # If n_leaves_in_set = size of 'cur_proc_branches', then the algorithm stops.
@@ -52,32 +70,59 @@ def algorithm1(tree, k=10):
     if tree.root.is_leaf():
         n_leaves_in_set += 1
 
-    while n_leaves_in_set != len(cur_proc_branches):
+    while True:
         # === Update the 'cur_proc_branches' set ===
+        # Upon removing a node from the set, its score is fixed.
+        next_branching_node.score = score(next_branching_node,
+                                          next_branching_node.edge_length)
+        # Remove this node from the set
         cur_proc_branches.remove(next_branching_node)
-        cur_dist_from_root = next_branching_node_dist
-        next_branching_node_dist = float('inf')
 
+        cur_dist_from_root = next_branching_node_dist_from_root
+
+        # Add the children of the node being removed to the set
         for child in next_branching_node.child_nodes():
-            if child.dist_from_root < next_branching_node_dist:
-                next_branching_node_dist = child.dist_from_root
-                next_branching_node = child
+            cur_proc_branches.add(child)
+            # if child.dist_from_root < next_branching_node_dist_from_root:
+            #     next_branching_node_dist_from_root = child.dist_from_root
+            #     next_branching_node = child
+
+        # Update 'next_branching_node'
+        next_branching_node_dist_from_root = float('inf')
+        for n in cur_proc_branches:
+            if n.dist_from_root < next_branching_node_dist_from_root:
+                next_branching_node = n
+                next_branching_node_dist_from_root = n.dist_from_root
+
+
+        # Check whether it is time to terminate
+        # All nodes are leaves
+        if n_leaves_in_set == len(cur_proc_branches):
+            break
 
         # === Sampling ===
-        if DEBUG_MODE:
-            assert next_branching_node_dist > cur_dist_from_root
+        if debug_mode['assert']:
+            # TODO: Note that it is possible that multiple nodes branch at the same time.
+            assert next_branching_node_dist_from_root >= cur_dist_from_root
 
-        n_samples = ceil((next_branching_node_dist - cur_dist_from_root) * k)
+        n_samples = ceil((next_branching_node_dist_from_root - cur_dist_from_root) * k)
 
         for i in range(n_samples):
             # Make a prediction at time...
-            time = random.uniform(cur_dist_from_root, next_branching_node_dist)
+            time = random.uniform(cur_dist_from_root, next_branching_node_dist_from_root)
 
             best_score = 0
             best_node = None
 
+            if debug_mode['print_score']:
+                print('------')
+
             for node in cur_proc_branches:
-                _score = score(node, time)
+                _score = score(node, time - cur_dist_from_root)
+
+                if debug_mode['print_score']:
+                    print(_score)
+
                 if _score > best_score:
                     best_score = _score
                     best_node = node
@@ -87,12 +132,32 @@ def algorithm1(tree, k=10):
             if best_node == next_branching_node:
                 n_correct_pred += 1
 
-    accuracy = n_pred / n_correct_pred
+    accuracy = n_correct_pred / n_pred
+    return accuracy
+
+
+def experiment(tree,
+               algorithm='algorithm1', k=10, score_func=score_counting,
+               repeat=1000):
+    global score
+    score = score_func
+
+    running_acc = 0
+    for i in range(repeat):
+        running_acc += eval(algorithm)(tree, k=k)
+    print(running_acc / repeat)
 
 
 if __name__ == '__main__':
-    filename = 'datasets/small.tre'
-    tree = treeswift.read_tree_newick(filename)
-    # print(dict(tree.distances_from_root(unlabeled=True)))
-    print(tree, k=10)
+    # filename = 'datasets/big.tre'
+    # tree = treeswift.read_tree_newick(filename)
+    # # print(tree)
+    # # print(dict(tree.distances_from_root(unlabeled=True)))
+    # print(algorithm1(tree, k=10))
 
+    import os
+
+    for filename in os.listdir('datasets'):
+        if filename == 'big.tre':
+            tree = treeswift.read_tree_newick('datasets/' + filename)
+            experiment(tree)
