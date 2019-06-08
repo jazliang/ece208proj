@@ -1,0 +1,84 @@
+Tree: 01.ft.mv.time9.tre
+    === Summary ===
+    Algorithm: 1
+    Scoring function: score_random
+    Acc: 0.0007449605609114811
+
+    === Summary ===
+    Algorithm: 1
+    Scoring function: score_counting
+    Acc: 0.0009640666082383874
+
+    === Summary ===
+    Algorithm: 1
+    Scoring function: score_exp_aging
+    Acc: 0.0013146362839614374
+
+
+Tree: 02.ft.mv.time9.tre
+    === Summary ===
+    Algorithm: 1
+    Scoring function: score_random
+    Acc: 0.0008753884536262966
+
+    === Summary ===
+    Algorithm: 1
+    Scoring function: score_counting
+    Acc: 0.000787849608263667
+
+    === Summary ===
+    Algorithm: 1
+    Scoring function: score_exp_aging
+    Acc: 0.0009629272989889263
+
+
+
+Tree: 02.true.time9.tre
+    === Summary ===
+    Algorithm: 1
+    Scoring function: score_random
+    Acc: 0.00033591991669186066
+
+    === Summary ===
+    Algorithm: 1
+    Scoring function: score_counting
+    Acc: 0.000503879875037791
+
+    === Summary ===
+    Algorithm: 1
+    Scoring function: score_exp_aging
+    Acc: 0.0005374718667069771
+
+
+Tree: merged_tree_0.tre
+    === Summary ===
+    Algorithm: 1
+    Scoring function: score_random
+    Acc: 0.0003069995906672124
+
+    === Summary ===
+    Algorithm: 1
+    Scoring function: score_counting
+    Acc: 0.00048242792819133386
+
+    === Summary ===
+    Algorithm: 1
+    Scoring function: score_exp_aging
+    Acc: 0.000497046956318344
+
+
+Tree: 04.ft.mv.tre
+    === Summary ===
+    Algorithm: 1
+    Scoring function: score_random
+    Acc: 0.0008940989469501292
+
+    === Summary ===
+    Algorithm: 1
+    Scoring function: score_counting
+    Acc: 0.0014404927478640969
+
+    === Summary ===
+    Algorithm: 1
+    Scoring function: score_exp_aging
+    Acc: 0.0014901649115835486

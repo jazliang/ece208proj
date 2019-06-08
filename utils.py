@@ -10,24 +10,42 @@ debug_mode = {
 }
 
 
-def score_random(node, time):
-    return random.uniform(0, 1)
+class Score:
+    def __init__(self, type='exp_aging'):
+        self.type = type
+
+        if type == 'random':
+            self.__score = self.__score_random
+        elif type == 'counting':
+            self.__score = self.__score_counting
+        elif type == 'exp_aging':
+            self.__score = self.__score_exp_aging
+        else:
+            raise ValueError('Unknown scoring function type.')
+
+    def __call__(self, node, time):
+        return self.__score(node, time)
+
+    @staticmethod
+    def __score_random(node, time):
+        return random.uniform(0, 1)
+
+    @staticmethod
+    def __score_exp_aging(node, time):
+        if node.is_root():
+            return 1
+        else:
+            return (node.parent.score + 1) * exp(-time)
+
+    @staticmethod
+    def __score_counting(node, time):
+        return len(node.br_history)
 
 
-def score_exp_aging(node, time):
-    if node.is_root():
-        return 1
-    else:
-        return (node.parent.score + 1) * exp(- time)
-
-
-def score_counting(node, time):
-    return len(node.br_history)
-
-
-def algorithm1(tree, k=10):
+def algorithm1(tree, score, k=10):
     """
     :param tree:
+    :param score: a scoring function object
     :param k: scaling factor, # samples in interval Δt = floor
     :return:
     """
@@ -132,20 +150,27 @@ def algorithm1(tree, k=10):
             if best_node == next_branching_node:
                 n_correct_pred += 1
 
-    accuracy = n_correct_pred / n_pred
-    return accuracy
+    # accuracy = n_correct_pred / n_pred
+    # return accuracy
+    return n_pred, n_correct_pred
 
 
-def experiment(tree,
-               algorithm='algorithm1', k=10, score_func=score_counting,
-               repeat=1000):
-    global score
-    score = score_func
+def experiment(tree, repeat=100,
+               algorithm='algorithm1', k=10, score=Score(type='exp_aging')):
 
-    running_acc = 0
+    running_n_pred = 0
+    running_n_correct_pred = 0
+
     for i in range(repeat):
-        running_acc += eval(algorithm)(tree, k=k)
-    print(running_acc / repeat)
+        n_pred, n_correct_pred = eval(algorithm)(tree, score, k=k)
+        running_n_pred += n_pred
+        running_n_correct_pred += n_correct_pred
+
+    print('=== Summary ===')
+    print('Algorithm:', 1)
+    print('Scoring function:', score.type)
+    print('Acc:', running_n_correct_pred / running_n_pred)
+    print()
 
 
 if __name__ == '__main__':
@@ -160,4 +185,4 @@ if __name__ == '__main__':
     for filename in os.listdir('datasets'):
         if filename == 'big.tre':
             tree = treeswift.read_tree_newick('datasets/' + filename)
-            experiment(tree)
+            experiment(tree, repeat=1)
