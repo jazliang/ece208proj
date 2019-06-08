@@ -42,28 +42,15 @@ class Score:
         return len(node.br_history)
 
 
-def algorithm1(tree, score, k=10):
+def algorithm1(tree, score, k=10, eval_start_time=0):
     """
     :param tree:
     :param score: a scoring function object
     :param k: scaling factor, # samples in interval Δt = floor
+    :param eval_start_time: the time when the evaluation (i.e. computing accuracy) starts
+
     :return:
     """
-
-    # === Branching history & Distance to root ===
-    # Distances from root of all nodes in the tree
-    def br_hist_dfs(node):
-        if node.is_root():
-            node.br_history = []
-            node.dist_from_root = 0
-        else:
-            node.br_history = node.get_parent().br_history + [node.get_parent().dist_from_root]
-            node.dist_from_root = node.get_parent().dist_from_root + node.edge_length
-
-        for c in node.child_nodes():
-            br_hist_dfs(c)
-
-    br_hist_dfs(tree.root)
 
     # Running count of predictions (sampled times)
     n_pred = 0
@@ -123,11 +110,19 @@ def algorithm1(tree, score, k=10):
             # TODO: Note that it is possible that multiple nodes branch at the same time.
             assert next_branching_node_dist_from_root >= cur_dist_from_root
 
+        # Hasn't reached the set evaluation start time. Ignored.
+        if next_branching_node_dist_from_root < eval_start_time:
+            continue
+
         n_samples = ceil((next_branching_node_dist_from_root - cur_dist_from_root) * k)
 
         for i in range(n_samples):
             # Make a prediction at time...
             time = random.uniform(cur_dist_from_root, next_branching_node_dist_from_root)
+
+            # Hasn't reached the set evaluation start time. Ignored.
+            if time < eval_start_time:
+                continue
 
             best_score = 0
             best_node = None
@@ -155,22 +150,63 @@ def algorithm1(tree, score, k=10):
     return n_pred, n_correct_pred
 
 
-def experiment(tree, repeat=100,
-               algorithm='algorithm1', k=10, score=Score(type='exp_aging')):
+class Experiment:
+    def __init__(self, tree, repeat=100,
+                 algorithm='algorithm1',
+                 k=10, score='exp_aging', eval_ratio=1.0):
+        self.tree = tree
+        self.max_leaf_to_root_dist = self._extract_tree_info()
+        self.eval_ratio = eval_ratio
+        self.eval_start_time = self.max_leaf_to_root_dist * (1 - self.eval_ratio)
 
-    running_n_pred = 0
-    running_n_correct_pred = 0
+        self.repeat = repeat
 
-    for i in range(repeat):
-        n_pred, n_correct_pred = eval(algorithm)(tree, score, k=k)
-        running_n_pred += n_pred
-        running_n_correct_pred += n_correct_pred
+        self.algorithm = eval(algorithm)
+        self.k = k
+        self.score = Score(type=score)
 
-    print('=== Summary ===')
-    print('Algorithm:', 1)
-    print('Scoring function:', score.type)
-    print('Acc:', running_n_correct_pred / running_n_pred)
-    print()
+        self.running_n_pred = 0
+        self.running_n_correct_pred = 0
+
+    def _extract_tree_info(self):
+        # Information to be extracted:
+        # - Branching history of all nodes
+        # - Distance to root of all nodes
+        # - Maximum leaf-to-root distance
+
+        def br_hist_dfs(node):
+            if node.is_root():
+                node.br_history = []
+                node.dist_from_root = 0
+            else:
+                node.br_history = node.get_parent().br_history + [node.get_parent().dist_from_root]
+                node.dist_from_root = node.get_parent().dist_from_root + node.edge_length
+
+            _max_leaf_to_root_dist = 0
+            if node.is_leaf():
+                _max_leaf_to_root_dist = node.dist_from_root
+
+            for c in node.child_nodes():
+                _max_leaf_to_root_dist = max(br_hist_dfs(c), _max_leaf_to_root_dist)
+
+            return _max_leaf_to_root_dist
+
+        return br_hist_dfs(self.tree.root)
+
+    def run(self):
+        for i in range(self.repeat):
+            _n_pred, _n_correct_pred = self.algorithm(tree=self.tree, k=self.k, score=self.score, eval_start_time=self.eval_start_time)
+            self.running_n_pred += _n_pred
+            self.running_n_correct_pred += _n_correct_pred
+
+        self.report()
+
+    def report(self):
+        print('=== Summary ===')
+        print('Algorithm:', type(self.algorithm))
+        print('Scoring function:', self.score.type)
+        print('Acc:', self.running_n_correct_pred / self.running_n_pred)
+        print()
 
 
 if __name__ == '__main__':
@@ -180,9 +216,4 @@ if __name__ == '__main__':
     # # print(dict(tree.distances_from_root(unlabeled=True)))
     # print(algorithm1(tree, k=10))
 
-    import os
-
-    for filename in os.listdir('datasets'):
-        if filename == 'big.tre':
-            tree = treeswift.read_tree_newick('datasets/' + filename)
-            experiment(tree, repeat=1)
+    pass

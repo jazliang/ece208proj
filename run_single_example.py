@@ -15,7 +15,8 @@ filename = os.path.join('datasets', 'big.tre')
 tree = treeswift.read_tree_newick(filename)
 repeat = 1
 
-experiment(tree, repeat=repeat, score=Score(type='random'))
-experiment(tree, repeat=repeat, score=Score(type='counting'))
-experiment(tree, repeat=repeat, score=Score(type='exp_aging'))
+Experiment(tree, repeat=repeat, algorithm='algorithm1', score='random', eval_ratio=0.3).run()
+Experiment(tree, repeat=repeat, algorithm='algorithm1', score='counting', eval_ratio=0.3).run()
+Experiment(tree, repeat=repeat, algorithm='algorithm1', score='exp_aging', eval_ratio=0.3).run()
+
 
