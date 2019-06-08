@@ -203,7 +203,7 @@ class Experiment:
 
     def report(self):
         print('=== Summary ===')
-        print('Algorithm:', type(self.algorithm))
+        print('Algorithm:', self.algorithm.__name__)
         print('Scoring function:', self.score.type)
         print('Acc:', self.running_n_correct_pred / self.running_n_pred)
         print()
