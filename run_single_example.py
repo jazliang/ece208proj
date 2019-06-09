@@ -11,16 +11,16 @@ import treeswift
 # 'merged_tree_0.tre'
 # '04.ft.mv.tre'
 
-filename = os.path.join('datasets', 'big.tre')
+filename = os.path.join('datasets', '01.ft.mv.time9.tre')
 tree = treeswift.read_tree_newick(filename)
 repeat = 10
 eval_ratio = 0.3
 
-Experiment(tree, repeat=repeat, algorithm='algorithm1', score='random', eval_ratio=eval_ratio).run()
-Experiment(tree, repeat=repeat, algorithm='algorithm1', score='ave_time', eval_ratio=eval_ratio).run()
-Experiment(tree, repeat=repeat, algorithm='algorithm1', score='ave_time_last_n_ancestors', eval_ratio=eval_ratio).run()
+Experiment(tree, repeat=repeat, algorithm='algorithm1', score='random', eval_ratio=eval_ratio, sample_scale=10).run()
+Experiment(tree, repeat=repeat, algorithm='algorithm1', score='ave_time', eval_ratio=eval_ratio, sample_scale=10).run()
+Experiment(tree, repeat=repeat, algorithm='algorithm1', score='ave_time_last_n_ancestors', eval_ratio=eval_ratio, sample_scale=10).run()
 
-Experiment(tree, repeat=repeat, algorithm='algorithm1', score='counting', eval_ratio=eval_ratio).run()
-Experiment(tree, repeat=repeat, algorithm='algorithm1', score='exp_aging', eval_ratio=eval_ratio).run()
+Experiment(tree, repeat=repeat, algorithm='algorithm1', score='counting', eval_ratio=eval_ratio, sample_scale=10).run()
+Experiment(tree, repeat=repeat, algorithm='algorithm1', score='exp_aging', eval_ratio=eval_ratio, sample_scale=10).run()
 
 
