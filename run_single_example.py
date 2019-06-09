@@ -11,12 +11,12 @@ import treeswift
 # 'merged_tree_0.tre'
 # '04.ft.mv.tre'
 
-filename = os.path.join('datasets', 'big.tre')
+filename = os.path.join('datasets', '01.ft.mv.time9.tre')
 tree = treeswift.read_tree_newick(filename)
 repeat = 1
 
-Experiment(tree, repeat=repeat, algorithm='algorithm1', score='random', eval_ratio=0.3).run()
-Experiment(tree, repeat=repeat, algorithm='algorithm1', score='counting', eval_ratio=0.3).run()
-Experiment(tree, repeat=repeat, algorithm='algorithm1', score='exp_aging', eval_ratio=0.3).run()
+Experiment(tree, repeat=repeat, algorithm='algorithm1', score='random', eval_ratio=1, sample_scale=10).run()
+Experiment(tree, repeat=repeat, algorithm='algorithm1', score='counting', eval_ratio=1, sample_scale=10).run()
+Experiment(tree, repeat=repeat, algorithm='algorithm1', score='exp_aging', eval_ratio=1, sample_scale=10).run()
 
 

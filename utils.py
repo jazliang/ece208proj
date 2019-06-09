@@ -2,10 +2,12 @@
 import treeswift
 from math import floor, ceil, exp
 import random
+from queue import PriorityQueue
+
 
 # Enable debug mode to assert or print debugging information
 debug_mode = {
-    'assert': True,
+    'assert': False,
     'print_score': False
 }
 
@@ -42,12 +44,13 @@ class Score:
         return len(node.br_history)
 
 
-def algorithm1(tree, score, k=10, eval_start_time=0):
+def algorithm1(tree, score, sample_scale=10, eval_start_time=0, top_k=5):
     """
     :param tree:
     :param score: a scoring function object
-    :param k: scaling factor, # samples in interval Δt = floor
+    :param sample_scale: scaling factor, # samples in interval Δt = floor
     :param eval_start_time: the time when the evaluation (i.e. computing accuracy) starts
+    :param top_k: see if the correct answer is in the top k predictions
 
     :return:
     """
@@ -110,25 +113,19 @@ def algorithm1(tree, score, k=10, eval_start_time=0):
             # TODO: Note that it is possible that multiple nodes branch at the same time.
             assert next_branching_node_dist_from_root >= cur_dist_from_root
 
-        # Hasn't reached the set evaluation start time. Ignored.
-        if next_branching_node_dist_from_root < eval_start_time:
-            continue
-
-        n_samples = ceil((next_branching_node_dist_from_root - cur_dist_from_root) * k)
+        n_samples = ceil((next_branching_node_dist_from_root - cur_dist_from_root) * sample_scale)
 
         for i in range(n_samples):
             # Make a prediction at time...
             time = random.uniform(cur_dist_from_root, next_branching_node_dist_from_root)
 
-            # Hasn't reached the set evaluation start time. Ignored.
-            if time < eval_start_time:
-                continue
-
-            best_score = 0
-            best_node = None
+            # best_score = 0
+            # best_node = None
 
             if debug_mode['print_score']:
                 print('------')
+
+            pq = PriorityQueue()
 
             for node in cur_proc_branches:
                 _score = score(node, time - cur_dist_from_root)
@@ -136,14 +133,23 @@ def algorithm1(tree, score, k=10, eval_start_time=0):
                 if debug_mode['print_score']:
                     print(_score)
 
-                if _score > best_score:
-                    best_score = _score
-                    best_node = node
+                # if _score > best_score:
+                #     best_score = _score
+                #     best_node = node
+
+                if pq.qsize() < top_k:
+                    pq.put((_score, node))
+                elif pq.queue[0][0] < _score:
+                    pq.get()
+                    pq.put((_score, node))
+
 
             # Prediction
-            n_pred += 1
-            if best_node == next_branching_node:
-                n_correct_pred += 1
+            # Only predict for time >= eval_start_time
+            if time >= eval_start_time:
+                n_pred += 1
+                if next_branching_node in list(zip(*pq.queue))[1]:
+                    n_correct_pred += 1
 
     # accuracy = n_correct_pred / n_pred
     # return accuracy
@@ -153,7 +159,7 @@ def algorithm1(tree, score, k=10, eval_start_time=0):
 class Experiment:
     def __init__(self, tree, repeat=100,
                  algorithm='algorithm1',
-                 k=10, score='exp_aging', eval_ratio=1.0):
+                 sample_scale=10, score='exp_aging', eval_ratio=1.0, top_k=10):
         self.tree = tree
         self.max_leaf_to_root_dist = self._extract_tree_info()
         self.eval_ratio = eval_ratio
@@ -162,8 +168,9 @@ class Experiment:
         self.repeat = repeat
 
         self.algorithm = eval(algorithm)
-        self.k = k
+        self.sample_scale = sample_scale
         self.score = Score(type=score)
+        self.top_k = top_k
 
         self.running_n_pred = 0
         self.running_n_correct_pred = 0
@@ -195,7 +202,11 @@ class Experiment:
 
     def run(self):
         for i in range(self.repeat):
-            _n_pred, _n_correct_pred = self.algorithm(tree=self.tree, k=self.k, score=self.score, eval_start_time=self.eval_start_time)
+            _n_pred, _n_correct_pred = self.algorithm(tree=self.tree,
+                                                      sample_scale=self.sample_scale,
+                                                      score=self.score,
+                                                      eval_start_time=self.eval_start_time,
+                                                      top_k=self.top_k)
             self.running_n_pred += _n_pred
             self.running_n_correct_pred += _n_correct_pred
 
@@ -214,6 +225,6 @@ if __name__ == '__main__':
     # tree = treeswift.read_tree_newick(filename)
     # # print(tree)
     # # print(dict(tree.distances_from_root(unlabeled=True)))
-    # print(algorithm1(tree, k=10))
+    # print(algorithm1(tree, sample_scale=10))
 
     pass
