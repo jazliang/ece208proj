@@ -23,6 +23,8 @@ class Score:
             self.__score = self.__score_exp_aging
         elif type == 'ave_time':
             self.__score = self.__score_by_average
+        elif type == 'ave_time_last_n_ancestors':
+            self.__score = self.__score_ave_time_with_n_ancestors
         else:
             raise ValueError('Unknown scoring function type.')
 
@@ -47,8 +49,15 @@ class Score:
     @staticmethod
     def __score_by_average(node, time):
         if node.is_root():
-            return int('inf')
+            return float('inf')
         return len(node.br_history) / (node.dist_from_root * 1.0)
+
+    @staticmethod
+    def __score_ave_time_with_n_ancestors(node, time):
+        # calculate the score by averaging the edge length of last_n_ancestors
+        if node.is_root():
+            return float('inf')
+        return 1.0 / node.ave_edge_last_n_ancestor
 
 
 def algorithm1(tree, score, k=10, eval_start_time=0):
@@ -162,17 +171,19 @@ def algorithm1(tree, score, k=10, eval_start_time=0):
 class Experiment:
     def __init__(self, tree, repeat=100,
                  algorithm='algorithm1',
-                 k=10, score='exp_aging', eval_ratio=1.0):
+                 k=10, score='exp_aging', eval_ratio=1.0, last_n_ancestors=2):
         self.tree = tree
-        self.max_leaf_to_root_dist = self._extract_tree_info()
-        self.eval_ratio = eval_ratio
-        self.eval_start_time = self.max_leaf_to_root_dist * (1 - self.eval_ratio)
-
-        self.repeat = repeat
 
         self.algorithm = eval(algorithm)
         self.k = k
+        self.repeat = repeat
+
         self.score = Score(type=score)
+        self.last_n_ancestors = last_n_ancestors
+
+        self.max_leaf_to_root_dist = self._extract_tree_info()
+        self.eval_ratio = eval_ratio
+        self.eval_start_time = self.max_leaf_to_root_dist * (1 - self.eval_ratio)
 
         self.running_n_pred = 0
         self.running_n_correct_pred = 0
@@ -182,14 +193,20 @@ class Experiment:
         # - Branching history of all nodes
         # - Distance to root of all nodes
         # - Maximum leaf-to-root distance
+        # - Average edge length of last_n_ancestors
 
         def br_hist_dfs(node):
             if node.is_root():
                 node.br_history = []
                 node.dist_from_root = 0
+                node.ave_edge_last_n_ancestor = 0
             else:
                 node.br_history = node.get_parent().br_history + [node.get_parent().dist_from_root]
                 node.dist_from_root = node.get_parent().dist_from_root + node.edge_length
+
+                start_index = 0 if len(node.br_history) < self.last_n_ancestors - 1 else 1-self.last_n_ancestors
+                node.ave_edge_last_n_ancestor = (node.dist_from_root + node.br_history[-1] - node.br_history[start_index]) \
+                                                * 1.0 / self.last_n_ancestors
 
             _max_leaf_to_root_dist = 0
             if node.is_leaf():
