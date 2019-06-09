@@ -1,6 +1,7 @@
 
 import treeswift
 from math import floor, ceil, exp
+from queue import PriorityQueue
 import random
 
 # Enable debug mode to assert or print debugging information
@@ -20,6 +21,8 @@ class Score:
             self.__score = self.__score_counting
         elif type == 'exp_aging':
             self.__score = self.__score_exp_aging
+        elif type == 'ave_time':
+            self.__score = self.__score_by_average
         else:
             raise ValueError('Unknown scoring function type.')
 
@@ -33,13 +36,19 @@ class Score:
     @staticmethod
     def __score_exp_aging(node, time):
         if node.is_root():
-            return 1
+            return 3
         else:
-            return (node.parent.score + 1) * exp(-time)
+            return (node.parent.score + 3) * exp(-time)
 
     @staticmethod
     def __score_counting(node, time):
         return len(node.br_history)
+
+    @staticmethod
+    def __score_by_average(node, time):
+        if node.is_root():
+            return int('inf')
+        return len(node.br_history) / (node.dist_from_root * 1.0)
 
 
 def algorithm1(tree, score, k=10, eval_start_time=0):
