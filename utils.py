@@ -16,6 +16,7 @@ debug_mode = {
 class Score:
     def __init__(self, type='exp_aging'):
         self.type = type
+        self.sampling_time_variant = False
 
         if type == 'random':
             self.__score = self.__score_random
@@ -23,6 +24,7 @@ class Score:
             self.__score = self.__score_counting
         elif type == 'exp_aging':
             self.__score = self.__score_exp_aging
+            self.sampling_time_variant = True
         elif type == 'ave_time':
             self.__score = self.__score_by_average
         elif type == 'ave_time_last_n_ancestors':
@@ -139,44 +141,78 @@ def algorithm1(tree, score, sample_scale=10, eval_start_time=0, top_k=5):
 
         n_samples = max(ceil((next_branching_node_dist_from_root - cur_dist_from_root) * sample_scale), 1)
 
-        for i in range(n_samples):
-            # Make a prediction at time...
-            time = random.uniform(cur_dist_from_root, next_branching_node_dist_from_root)
 
-            # best_score = 0
-            # best_node = None
-
-            if debug_mode['print_score']:
-                print('------')
-
-            pq = PriorityQueue()
-
-            for node in cur_proc_branches:
-                _score = score(node, time - cur_dist_from_root)
-
-                if debug_mode['print_score']:
-                    print(_score)
-
-                # if _score > best_score:
-                #     best_score = _score
-                #     best_node = node
-
-                if pq.qsize() < top_k:
-                    pq.put((_score, node))
-                elif pq.queue[0][0] < _score:
-                    pq.get()
-                    pq.put((_score, node))
-
-
-            # Prediction
-            # Only predict for time >= eval_start_time
-            if time >= eval_start_time:
-                n_pred += 1
-                if next_branching_node in list(zip(*pq.queue))[1]:
-                    n_correct_pred += 1
+        tmp_n_pre, tmp_n_correct_pred = run_sampling(n_samples, cur_dist_from_root, next_branching_node_dist_from_root,
+                                                     cur_proc_branches, next_branching_node, score,
+                                                    top_k=top_k, eval_start_time=eval_start_time)
+        n_pred += tmp_n_pre
+        n_correct_pred += tmp_n_correct_pred
 
     # accuracy = n_correct_pred / n_pred
     # return accuracy
+    return n_pred, n_correct_pred
+
+
+def run_sampling(n_samples, start_time, end_time, predict_branches, real_next_branch, score,
+                 top_k=5, eval_start_time=0):
+    """
+
+    :param n_samples: sample numbers
+    :param start_time: sampling start time
+    :param end_time: sampling end time
+    :param predict_branches: the current branch set that we need to predict on
+    :param real_next_branch: the real next branch by which we calculate the correct prediction number
+    :param score: the score function, ie. __score_counting, __score_exp_aging
+    :param top_k: top_k branch we will select by their scores
+    :param eval_start_time: the time when the evaluation (i.e. computing accuracy) starts
+    :return:
+    """
+    n_pred = 0
+    n_correct_pred = 0
+
+    for i in range(n_samples):
+        # Make a prediction at time...
+        time = random.uniform(start_time, end_time)
+
+        # best_score = 0
+        # best_node = None
+
+        if debug_mode['print_score']:
+            print('------')
+
+        pq = PriorityQueue()
+
+        for node in predict_branches:
+            _score = score(node, time - start_time)
+
+            if debug_mode['print_score']:
+                print(_score)
+
+            # if _score > best_score:
+            #     best_score = _score
+            #     best_node = node
+
+            if pq.qsize() < top_k:
+                pq.put((_score, node))
+            elif pq.queue[0][0] < _score:
+                pq.get()
+                pq.put((_score, node))
+
+        # Prediction
+        # Only predict for time >= eval_start_time
+        if time >= eval_start_time:
+            n_pred += 1
+            if real_next_branch in list(zip(*pq.queue))[1]:
+                n_correct_pred += 1
+
+        # if time_variant is False, then just run once and multiply the results
+        if not score.sampling_time_variant:
+            break
+
+    if score.sampling_time_variant:
+        n_pred = n_pred * n_samples
+        n_correct_pred  = n_correct_pred * n_samples
+
     return n_pred, n_correct_pred
 
 
