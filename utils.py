@@ -50,16 +50,16 @@ class Score:
 
     @staticmethod
     def __score_by_average(node, time):
-        if node.is_root():
+        if node.is_root() or node.parent.is_root():
             return float('inf')
-        return len(node.br_history) / (node.dist_from_root * 1.0)
+        return (len(node.br_history) - 1) * 1.0 / node.parent.dist_from_root
 
     @staticmethod
     def __score_ave_time_with_n_ancestors(node, time):
         # calculate the score by averaging the edge length of last_n_ancestors
-        if node.is_root():
+        if node.is_root() or node.parent.is_root():
             return float('inf')
-        return 1.0 / node.ave_edge_last_n_ancestor
+        return 1.0 / node.parent.ave_edge_last_n_ancestor
 
 
 def algorithm1(tree, score, sample_scale=10, eval_start_time=0, top_k=5):
@@ -96,7 +96,13 @@ def algorithm1(tree, score, sample_scale=10, eval_start_time=0, top_k=5):
     if tree.root.is_leaf():
         n_leaves_in_set += 1
 
+    j = 0
     while True:
+        # === Debug print ===
+        j += 1
+        if j % 5000 == 0:
+            print("***** Processing Node #{} is leaf? {}".format(j, next_branching_node.is_leaf()))
+
         # === Update the 'cur_proc_branches' set ===
         # Upon removing a node from the set, its score is fixed.
         next_branching_node.score = score(next_branching_node,
@@ -131,7 +137,7 @@ def algorithm1(tree, score, sample_scale=10, eval_start_time=0, top_k=5):
             # TODO: Note that it is possible that multiple nodes branch at the same time.
             assert next_branching_node_dist_from_root >= cur_dist_from_root
 
-        n_samples = ceil((next_branching_node_dist_from_root - cur_dist_from_root) * sample_scale)
+        n_samples = max(ceil((next_branching_node_dist_from_root - cur_dist_from_root) * sample_scale), 1)
 
         for i in range(n_samples):
             # Make a prediction at time...
@@ -177,7 +183,7 @@ def algorithm1(tree, score, sample_scale=10, eval_start_time=0, top_k=5):
 class Experiment:
     def __init__(self, tree, repeat=100,
                  algorithm='algorithm1',
-                 sample_scale=10, score='exp_aging', eval_ratio=1.0, top_k=10, last_n_ancestors=2):
+                 sample_scale=10, score='exp_aging', eval_ratio=1.0, top_k=10, last_n_ancestors=5):
         self.tree = tree
 
         self.algorithm = eval(algorithm)
@@ -211,9 +217,10 @@ class Experiment:
                 node.br_history = node.get_parent().br_history + [node.get_parent().dist_from_root]
                 node.dist_from_root = node.get_parent().dist_from_root + node.edge_length
 
-                start_index = 0 if len(node.br_history) < self.last_n_ancestors - 1 else 1-self.last_n_ancestors
-                node.ave_edge_last_n_ancestor = (node.dist_from_root + node.br_history[-1] - node.br_history[start_index]) \
-                                                * 1.0 / self.last_n_ancestors
+                start_index = 0 if len(node.br_history) < self.last_n_ancestors else -self.last_n_ancestors
+                branch_num = len(node.br_history) if len(node.br_history) < self.last_n_ancestors else self.last_n_ancestors
+                node.ave_edge_last_n_ancestor = (node.dist_from_root - node.br_history[start_index]) \
+                                                * 1.0 / branch_num
 
             _max_leaf_to_root_dist = 0
             if node.is_leaf():
@@ -228,6 +235,7 @@ class Experiment:
 
     def run(self):
         for i in range(self.repeat):
+            print("Repeat at {}th".format(i))
             _n_pred, _n_correct_pred = self.algorithm(tree=self.tree,
                                                       sample_scale=self.sample_scale,
                                                       score=self.score,
