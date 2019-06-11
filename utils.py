@@ -1,20 +1,34 @@
 
+from config import *
 import treeswift
 from math import floor, ceil, exp
-from queue import PriorityQueue
 import random
 from queue import PriorityQueue
 import os
 import json
 import datetime
+import time
+from tqdm import tqdm
 
 
-# Enable debug mode to assert or print debugging information
-debug_mode = {
-    'assert': False,
-    'print_score': False,
-    'print_repeat_results': False
-}
+def timing(func):
+    """
+    A decorator for measuring the running time of a function call
+
+    :param func: the function to be measured
+    :return: a wrapper function object
+    """
+    def wrapper(*arg):
+        start = time.clock()
+        res = func(*arg)
+        stop = time.clock()
+
+        if debug_mode['timing']:
+            print('Time elapsed: %.04f second(s).' % (stop - start))
+
+        return res
+
+    return wrapper
 
 
 class Score:
@@ -66,7 +80,7 @@ class Score:
         return 1.0 / node.parent.ave_edge_last_n_ancestor
 
 
-def algorithm1(tree, score, sample_scale=10, eval_start_time=0, top_k=5):
+def algorithm1(tree, score, sample_scale=10, eval_start_time=0.0, top_k=5):
     """
     :param tree:
     :param score: a scoring function object
@@ -100,13 +114,10 @@ def algorithm1(tree, score, sample_scale=10, eval_start_time=0, top_k=5):
     if tree.root.is_leaf():
         n_leaves_in_set += 1
 
-    j = 0
-    while True:
-        # === Debug print ===
-        j += 1
-        if j % 5000 == 0:
-            print("***** Processing Node #{} is leaf? {}".format(j, next_branching_node.is_leaf()))
+    if debug_mode['print_progress']:
+        pbar = tqdm(total=tree.n_nodes, unit='nodes')
 
+    while True:
         # === Update the 'cur_proc_branches' set ===
         # Upon removing a node from the set, its score is fixed.
         next_branching_node.score = score(next_branching_node,
@@ -119,6 +130,8 @@ def algorithm1(tree, score, sample_scale=10, eval_start_time=0, top_k=5):
         # Add the children of the node being removed to the set
         for child in next_branching_node.child_nodes():
             cur_proc_branches.add(child)
+            if debug_mode['print_progress']:
+                pbar.update(1)
             # if child.dist_from_root < next_branching_node_dist_from_root:
             #     next_branching_node_dist_from_root = child.dist_from_root
             #     next_branching_node = child
@@ -129,7 +142,6 @@ def algorithm1(tree, score, sample_scale=10, eval_start_time=0, top_k=5):
             if n.dist_from_root < next_branching_node_dist_from_root:
                 next_branching_node = n
                 next_branching_node_dist_from_root = n.dist_from_root
-
 
         # Check whether it is time to terminate
         # All nodes are leaves
@@ -181,13 +193,16 @@ def algorithm1(tree, score, sample_scale=10, eval_start_time=0, top_k=5):
 
     # accuracy = n_correct_pred / n_pred
     # return accuracy
+    if debug_mode['print_progress']:
+        pbar.close()
+
     return n_pred, n_correct_pred
 
 
 class Experiment:
     def __init__(self, tree_filename, repeat=100,
                  algorithm='algorithm1',
-                 sample_scale=10, score='exp_aging', eval_ratio=1.0, top_k=10, last_n_ancestors=5,
+                 sample_scale=10, score='exp_aging', eval_ratio=1.0, top_k=5, last_n_ancestors=5,
                  use_prev_results=True):
 
         self.tree_filename = tree_filename
@@ -201,9 +216,10 @@ class Experiment:
         self.top_k = top_k
         self.last_n_ancestors = last_n_ancestors
 
-        self.max_leaf_to_root_dist = self._extract_tree_info()
+        self.tree.n_nodes, self.tree.max_leaf_to_root_dist = self._extract_tree_info()
+
         self.eval_ratio = eval_ratio
-        self.eval_start_time = self.max_leaf_to_root_dist * (1 - self.eval_ratio)
+        self.eval_start_time = self.tree.max_leaf_to_root_dist * (1.0 - self.eval_ratio)
 
         self.running_n_pred = 0
         self.running_n_correct_pred = 0
@@ -215,6 +231,7 @@ class Experiment:
             'Settings': {
                 'tree': self.tree_filename,  # Tree filename
                 'alg': algorithm,  # Algorithm
+                'sc': score,  # Scoring function
                 'k': self.sample_scale,  # Sample scaling factor k
                 'rpt': self.repeat,  # Repeat
                 'top': self.top_k,  # Top k
@@ -247,17 +264,21 @@ class Experiment:
                 node.ave_edge_last_n_ancestor = (node.dist_from_root - node.br_history[start_index]) \
                                                 * 1.0 / branch_num
 
-            _max_leaf_to_root_dist = 0
             if node.is_leaf():
-                _max_leaf_to_root_dist = node.dist_from_root
+                return 1, node.dist_from_root
+            else:
+                _max_leaf_to_root_dist = 0
+                _n_nodes = 1
+                for c in node.child_nodes():
+                    _n, _d = br_hist_dfs(c)
+                    _n_nodes += _n
+                    _max_leaf_to_root_dist = max(_d, _max_leaf_to_root_dist)
 
-            for c in node.child_nodes():
-                _max_leaf_to_root_dist = max(br_hist_dfs(c), _max_leaf_to_root_dist)
-
-            return _max_leaf_to_root_dist
+                return _n_nodes, _max_leaf_to_root_dist
 
         return br_hist_dfs(self.tree.root)
 
+    @timing
     def run(self):
         print('-----', 'Tree:', self.tree_filename, '-----')
 
@@ -269,7 +290,6 @@ class Experiment:
                 self.summary = _summary
                 self._print_summary()
                 return
-
 
         for i in range(self.repeat):
             _n_pred, _n_correct_pred = self.algorithm(tree=self.tree,
@@ -287,7 +307,7 @@ class Experiment:
             }
 
             if debug_mode['print_repeat_results']:
-                print('Repeat %d:' % i)
+                print('Repeat:', i)
                 for k, v in self.summary['Repeats']['Repeat %d' % i].items():
                     print(k + ':', v)
                 print()
@@ -314,7 +334,7 @@ class Experiment:
 
     def _save_results(self):
         _datetime = str(datetime.datetime.now().strftime("%m:%d:%H:%M:%S"))
-        _filename = '_'.join(self._settings_list) + '_' + _datetime
+        _filename = '__'.join(self._settings_list) + '__' + _datetime
 
         if not os.path.exists('log'):
             os.makedirs('log')
@@ -323,18 +343,18 @@ class Experiment:
             json.dump(self.summary, f, indent=4)
 
     def _check_prev_experiments(self):
-        _this_part1 = '_'.join(self._settings_list[:3])
-        _this_repeat = self._settings_list[3]
-        _this_part2 = '_'.join(self._settings_list[4:])
+        _this_part1 = '__'.join(self._settings_list[:4])
+        _this_repeat = self._settings_list[4]
+        _this_part2 = '__'.join(self._settings_list[5:])
 
         for log_filename in os.listdir('log'):
             if not log_filename.startswith('tree-'):
                 continue
 
-            _settings = log_filename.split('_')[:-1]  # Don't include date and time
-            _part1 = '_'.join(_settings[:3])
-            _repeat = _settings[3]
-            _part2 = '_'.join(_settings[4:])
+            _settings = log_filename.split('__')[:-1]  # Don't include date and time
+            _part1 = '__'.join(_settings[:4])
+            _repeat = _settings[4]
+            _part2 = '__'.join(_settings[5:])
 
             if _this_part1 == _part1 and _this_part2 == _part2:
                 _this_repeat = int(_this_repeat.split('-')[1])
@@ -348,11 +368,3 @@ class Experiment:
 
         return None
 
-
-if __name__ == '__main__':
-    # filename = 'datasets/big.tre'
-    # tree = treeswift.read_tree_newick(filename)
-    # # print(tree)
-    # # print(dict(tree.distances_from_root(unlabeled=True)))
-    # print(algorithm1(tree, sample_scale=10))
-    pass
