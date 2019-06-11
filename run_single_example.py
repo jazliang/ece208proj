@@ -9,9 +9,8 @@ from utils import *
 # 'merged_tree_0.tre'
 # '04.ft.mv.tre'
 
-tree_filename = ('datasets', '02.sub25.ft.mv.time9.tre')
-
-repeat = 1
+tree_filename = ('datasets', '01.sub25.ft.mv.time9.tre')
+repeat = 10
 eval_ratio = 0.3
 top_k = 5
 

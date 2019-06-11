@@ -229,7 +229,7 @@ class Experiment:
 
         self.summary = {
             'Settings': {
-                'tree': self.tree_filename,  # Tree filename
+                'tree': tree_filename,  # Tree filename
                 'alg': algorithm,  # Algorithm
                 'sc': score,  # Scoring function
                 'k': self.sample_scale,  # Sample scaling factor k
@@ -333,13 +333,16 @@ class Experiment:
         print()
 
     def _save_results(self):
-        _datetime = str(datetime.datetime.now().strftime("%m:%d:%H:%M:%S"))
-        _filename = '__'.join(self._settings_list) + '__' + _datetime
-
+        # invalid filename using the time str format
+        # _datetime = str(datetime.datetime.now().strftime("%m:%d:%H:%M:%S"))
+        # _filename = '__'.join(self._settings_list) + '__' + _datetime
+        _filename = '__'.join(self._settings_list)
         if not os.path.exists('log'):
             os.makedirs('log')
 
-        with open(os.path.join('log', _filename), 'w') as f:
+        fn = os.path.join('log', _filename)
+        print(fn)
+        with open(fn, 'w') as f:
             json.dump(self.summary, f, indent=4)
 
     def _check_prev_experiments(self):
