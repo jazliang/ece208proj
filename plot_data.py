@@ -3,7 +3,6 @@ import treeswift
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 
 def plot_hist(file_name):
@@ -45,6 +44,7 @@ def get_edge_length_with_distance_from_root(file_name):
         edge_length.append(node.edge_length)
     return distance_from_root, edge_length
 
+
 def get_edge_length(file_name):
     tree = read_tree(file_name)
 
@@ -54,6 +54,7 @@ def get_edge_length(file_name):
             continue
         edge_lengthes.append(node.edge_length)
     return edge_lengthes
+
 
 ## plot examples
 plot_hist('merged_tree_0.tre')

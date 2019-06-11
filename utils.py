@@ -4,12 +4,16 @@ from math import floor, ceil, exp
 from queue import PriorityQueue
 import random
 from queue import PriorityQueue
+import os
+import json
+import datetime
 
 
 # Enable debug mode to assert or print debugging information
 debug_mode = {
     'assert': False,
-    'print_score': False
+    'print_score': False,
+    'print_repeat_results': False
 }
 
 
@@ -181,10 +185,13 @@ def algorithm1(tree, score, sample_scale=10, eval_start_time=0, top_k=5):
 
 
 class Experiment:
-    def __init__(self, tree, repeat=100,
+    def __init__(self, tree_filename, repeat=100,
                  algorithm='algorithm1',
-                 sample_scale=10, score='exp_aging', eval_ratio=1.0, top_k=10, last_n_ancestors=5):
-        self.tree = tree
+                 sample_scale=10, score='exp_aging', eval_ratio=1.0, top_k=10, last_n_ancestors=5,
+                 use_prev_results=True):
+
+        self.tree_filename = tree_filename
+        self.tree = treeswift.read_tree_newick(os.path.join(*tree_filename))
 
         self.algorithm = eval(algorithm)
         self.sample_scale = sample_scale
@@ -200,6 +207,24 @@ class Experiment:
 
         self.running_n_pred = 0
         self.running_n_correct_pred = 0
+
+        # Use the results of previous experiments if available
+        self.use_prev_results = use_prev_results
+
+        self.summary = {
+            'Settings': {
+                'tree': self.tree_filename,  # Tree filename
+                'alg': algorithm,  # Algorithm
+                'k': self.sample_scale,  # Sample scaling factor k
+                'rpt': self.repeat,  # Repeat
+                'top': self.top_k,  # Top k
+                'lna': self.last_n_ancestors,  # Last n ancestors
+                'evalr': self.eval_ratio  # Eval ratio
+            },
+            'Repeats': {}
+        }
+
+        self._settings_list = [k + '-' + str(v) for k, v in self.summary['Settings'].items()]
 
     def _extract_tree_info(self):
         # Information to be extracted:
@@ -234,8 +259,19 @@ class Experiment:
         return br_hist_dfs(self.tree.root)
 
     def run(self):
+        print('-----', 'Tree:', self.tree_filename, '-----')
+
+        self._print_settings()
+
+        if self.use_prev_results:
+            _summary = self._check_prev_experiments()
+            if _summary is not None:
+                self.summary = _summary
+                self._print_summary()
+                return
+
+
         for i in range(self.repeat):
-            print("Repeat at {}th".format(i))
             _n_pred, _n_correct_pred = self.algorithm(tree=self.tree,
                                                       sample_scale=self.sample_scale,
                                                       score=self.score,
@@ -244,14 +280,73 @@ class Experiment:
             self.running_n_pred += _n_pred
             self.running_n_correct_pred += _n_correct_pred
 
-        self.report()
+            self.summary['Repeats']['Repeat %d' % i] = {
+                '# Predictions': _n_pred,
+                '# Correct Predictions': _n_correct_pred,
+                'Accuracy': _n_correct_pred / _n_pred
+            }
 
-    def report(self):
-        print('=== Summary ===')
-        print('Algorithm:', self.algorithm.__name__)
-        print('Scoring function:', self.score.type)
-        print('Acc:', self.running_n_correct_pred / self.running_n_pred)
+            if debug_mode['print_repeat_results']:
+                print('Repeat %d:' % i)
+                for k, v in self.summary['Repeats']['Repeat %d' % i].items():
+                    print(k + ':', v)
+                print()
+
+        self.summary['Final Results'] = {
+            'Total # Predictions': self.running_n_pred,
+            'Total # Correct Predictions': self.running_n_correct_pred,
+            'Accuracy': self.running_n_correct_pred / self.running_n_pred
+        }
+
+        # Summary of the experiment
+        self._print_summary()
+        self._save_results()
+
+    def _print_settings(self):
+        print(json.dumps(self.summary['Settings'], indent=4))
         print()
+
+    def _print_summary(self):
+        print('Summary for tree:', self.tree_filename)
+        for k, v in self.summary['Final Results'].items():
+            print(k + ':', v)
+        print()
+
+    def _save_results(self):
+        _datetime = str(datetime.datetime.now().strftime("%m:%d:%H:%M:%S"))
+        _filename = '_'.join(self._settings_list) + '_' + _datetime
+
+        if not os.path.exists('log'):
+            os.makedirs('log')
+
+        with open(os.path.join('log', _filename), 'w') as f:
+            json.dump(self.summary, f, indent=4)
+
+    def _check_prev_experiments(self):
+        _this_part1 = '_'.join(self._settings_list[:3])
+        _this_repeat = self._settings_list[3]
+        _this_part2 = '_'.join(self._settings_list[4:])
+
+        for log_filename in os.listdir('log'):
+            if not log_filename.startswith('tree-'):
+                continue
+
+            _settings = log_filename.split('_')[:-1]  # Don't include date and time
+            _part1 = '_'.join(_settings[:3])
+            _repeat = _settings[3]
+            _part2 = '_'.join(_settings[4:])
+
+            if _this_part1 == _part1 and _this_part2 == _part2:
+                _this_repeat = int(_this_repeat.split('-')[1])
+                _repeat = int(_repeat.split('-')[1])
+
+                if _this_repeat == _repeat:
+                    print('INFO: Found previous experiment with same settings.\n')
+                    with open(os.path.join('log', log_filename)) as f:
+                        _summary = eval(f.read())
+                    return _summary
+
+        return None
 
 
 if __name__ == '__main__':
@@ -260,5 +355,4 @@ if __name__ == '__main__':
     # # print(tree)
     # # print(dict(tree.distances_from_root(unlabeled=True)))
     # print(algorithm1(tree, sample_scale=10))
-
     pass
